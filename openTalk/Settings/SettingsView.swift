@@ -1,5 +1,4 @@
 import SwiftUI
-import KeyboardShortcuts
 
 struct SettingsView: View {
     @Bindable var settings: SettingsStore
@@ -8,7 +7,9 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("Hotkey") {
-                KeyboardShortcuts.Recorder("Push-to-talk", name: .dictation)
+                LabeledContent("Push-to-talk") { Text("Hold ⌃ Control") }
+                Text("Hold Control alone to record, release to transcribe + paste. Pressing Control with any other key (e.g. ⌃C, ⌃click) will not trigger recording.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section("Model") {

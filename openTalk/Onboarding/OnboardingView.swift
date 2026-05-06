@@ -1,6 +1,5 @@
 import SwiftUI
 import AppKit
-import KeyboardShortcuts
 
 @MainActor
 @Observable
@@ -90,7 +89,7 @@ struct OnboardingView: View {
             Spacer()
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Hotkey: \(KeyboardShortcuts.getShortcut(for: .dictation)?.description ?? "(none set)")")
+                Text("Hotkey: hold ⌃ Control")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text("Granting access to: \(PermissionsChecker.runningAppPath)")
