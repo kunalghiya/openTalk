@@ -1,0 +1,92 @@
+name: openTalk
+options:
+  bundleIdPrefix: com.opentalk
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    ARCHS: arm64
+    ONLY_ACTIVE_ARCH: NO
+    DEAD_CODE_STRIPPING: YES
+    ENABLE_HARDENED_RUNTIME: YES
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+
+packages:
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit
+    from: 0.9.0
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    from: 2.0.0
+
+targets:
+  openTalk:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: openTalk
+        excludes:
+          - "Resources/Info.plist"
+          - "Resources/openTalk.entitlements"
+    resources:
+      - openTalk/Resources/Assets.xcassets
+    info:
+      path: openTalk/Resources/Info.plist
+      properties:
+        CFBundleName: openTalk
+        CFBundleDisplayName: openTalk
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        LSMinimumSystemVersion: "14.0"
+        LSUIElement: true
+        NSMicrophoneUsageDescription: "openTalk transcribes audio you record while holding the dictation hotkey."
+        NSHighResolutionCapable: true
+    entitlements:
+      path: openTalk/Resources/openTalk.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+        com.apple.security.device.audio-input: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.opentalk.openTalk
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        ENABLE_PREVIEWS: YES
+    dependencies:
+      - package: WhisperKit
+      - package: KeyboardShortcuts
+
+  openTalkTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - openTalkTests
+    dependencies:
+      - target: openTalk
+    settings:
+      base:
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/openTalk.app/Contents/MacOS/openTalk"
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.opentalk.openTalkTests
+
+schemes:
+  openTalk:
+    build:
+      targets:
+        openTalk: all
+        openTalkTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - openTalkTests
