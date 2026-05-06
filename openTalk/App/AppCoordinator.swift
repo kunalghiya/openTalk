@@ -111,10 +111,16 @@ final class AppCoordinator {
     private func openSettings() {
         if settingsWindow == nil {
             let host = NSHostingController(rootView: SettingsView(settings: settings))
-            let win = NSWindow(contentViewController: host)
+            let win = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 520, height: 480),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
             win.title = "openTalk Settings"
-            win.styleMask = [.titled, .closable]
+            win.contentViewController = host
             win.isReleasedWhenClosed = false
+            win.setContentSize(NSSize(width: 520, height: 480))
             win.center()
             settingsWindow = win
         }

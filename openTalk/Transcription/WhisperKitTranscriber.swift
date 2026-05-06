@@ -7,8 +7,19 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
 
     func load(modelName: String, progress: @Sendable @escaping (Double) -> Void) async throws {
         do {
+            let cacheBase = Self.modelCacheDirectory()
+            let modelFolder = cacheBase
+                .appendingPathComponent("models")
+                .appendingPathComponent("argmaxinc")
+                .appendingPathComponent("whisperkit-coreml")
+                .appendingPathComponent(modelName)
+                .path
+            let modelExistsLocally = FileManager.default.fileExists(atPath: modelFolder)
+
             let config = WhisperKitConfig(
                 model: modelName,
+                downloadBase: cacheBase,
+                modelFolder: modelExistsLocally ? modelFolder : nil,
                 verbose: false,
                 logLevel: .error,
                 prewarm: true,
@@ -34,5 +45,21 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
         } catch {
             throw TranscriberError.underlying(error)
         }
+    }
+
+    /// Stable, app-scoped cache that survives across builds. Avoids
+    /// WhisperKit's default `~/Documents/huggingface/` which can interact
+    /// poorly with macOS file-access prompts and Xcode's per-build sandboxes.
+    private static func modelCacheDirectory() -> URL {
+        let fm = FileManager.default
+        let support = (try? fm.url(for: .applicationSupportDirectory,
+                                   in: .userDomainMask,
+                                   appropriateFor: nil,
+                                   create: true))
+            ?? URL(fileURLWithPath: NSHomeDirectory())
+                .appendingPathComponent("Library/Application Support")
+        let dir = support.appendingPathComponent("openTalk", isDirectory: true)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
     }
 }
