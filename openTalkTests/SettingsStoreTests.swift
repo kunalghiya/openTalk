@@ -28,4 +28,16 @@ final class SettingsStoreTests: XCTestCase {
         store.clipboardRestoreDelayMs = 5_000
         XCTAssertEqual(store.clipboardRestoreDelayMs, 2_000, "should clamp to <=2000ms")
     }
+
+    func test_pushToTalkTrigger_defaultsToControl_andPersists() {
+        XCTAssertEqual(store.pushToTalkTrigger, .control)
+        store.pushToTalkTrigger = .option
+        let store2 = SettingsStore(defaults: defaults)
+        XCTAssertEqual(store2.pushToTalkTrigger, .option)
+    }
+
+    func test_pushToTalkTrigger_falls_back_to_control_on_garbage() {
+        defaults.set("not-a-real-modifier", forKey: "openTalk.pushToTalkTrigger")
+        XCTAssertEqual(store.pushToTalkTrigger, .control)
+    }
 }

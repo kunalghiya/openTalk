@@ -20,14 +20,15 @@ final class AppCoordinator {
         let store = SettingsStore()
         self.settings = store
         self.menuBar = MenuBarController()
-        self.hotkey = HotkeyManager()
+        self.hotkey = HotkeyManager(trigger: { store.pushToTalkTrigger.modifierFlags })
         self.recorder = AudioRecorder()
         let trans = WhisperKitTranscriber()
         self.transcriber = trans
         self.paster = Paster(restoreDelayMs: { store.clipboardRestoreDelayMs })
         self.onboardingVM = OnboardingViewModel(
             transcriber: trans,
-            modelName: { store.selectedModelName }
+            modelName: { store.selectedModelName },
+            triggerLabel: { store.pushToTalkTrigger.displayName }
         )
         self.settingsVM = SettingsViewModel(settings: store, transcriber: trans)
     }

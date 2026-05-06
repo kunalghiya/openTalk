@@ -1,22 +1,35 @@
 import AppKit
 
-/// Push-to-talk via a single modifier key (currently Control). Watches
-/// `NSEvent.flagsChanged` globally and locally so we hear it whether or
-/// not openTalk is the active app. Global monitoring requires Accessibility
-/// permission — the same permission we need for paste.
+extension HotkeyTrigger {
+    var modifierFlags: NSEvent.ModifierFlags {
+        switch self {
+        case .control: return .control
+        case .option:  return .option
+        case .command: return .command
+        case .shift:   return .shift
+        }
+    }
+}
+
+/// Push-to-talk via a single modifier key. The trigger is supplied via a
+/// closure so the user can change it in Settings and have the new choice
+/// take effect immediately — no relaunch.
+///
+/// Watches `NSEvent.flagsChanged` globally and locally so we hear it
+/// whether or not openTalk is the active app. Global monitoring requires
+/// Accessibility permission — the same permission we need for paste.
 @MainActor
 final class HotkeyManager {
     var onPress: (() -> Void)?
     var onRelease: (() -> Void)?
 
-    /// The modifier that triggers push-to-talk. Hold to record, release to stop.
-    private let trigger: NSEvent.ModifierFlags = .control
-
+    private let trigger: () -> NSEvent.ModifierFlags
     private var globalMonitor: Any?
     private var localMonitor: Any?
     private var isPressed = false
 
-    init() {
+    init(trigger: @escaping () -> NSEvent.ModifierFlags) {
+        self.trigger = trigger
         let handle: (NSEvent) -> Void = { [weak self] event in
             self?.handleFlagsChanged(event)
         }
@@ -39,7 +52,7 @@ final class HotkeyManager {
 
     private func handleFlagsChanged(_ event: NSEvent) {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let onlyTrigger = flags == trigger
+        let onlyTrigger = flags == trigger()
 
         if !isPressed && onlyTrigger {
             isPressed = true

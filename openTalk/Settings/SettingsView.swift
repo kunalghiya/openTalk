@@ -11,9 +11,16 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("Hotkey") {
-                LabeledContent("Push-to-talk") { Text("Hold ⌃ Control") }
-                Text("Hold Control alone to record, release to transcribe + paste. Pressing Control with any other key (e.g. ⌃C, ⌃click) will not trigger recording.")
+                Picker("Push-to-talk modifier", selection: $settings.pushToTalkTrigger) {
+                    ForEach(HotkeyTrigger.allCases) { t in
+                        Text(t.displayName).tag(t)
+                    }
+                }
+                Text("Hold the modifier alone to record, release to transcribe + paste. Pressing it with any other key (e.g. \(settings.pushToTalkTrigger.displayName)+C) will not trigger recording.")
                     .font(.caption).foregroundStyle(.secondary)
+                if let caveat = settings.pushToTalkTrigger.caveat {
+                    Text(caveat).font(.caption).foregroundStyle(.orange)
+                }
             }
 
             Section("Model") {

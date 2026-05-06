@@ -12,11 +12,17 @@ final class OnboardingViewModel {
 
     private let transcriber: Transcriber
     private let modelName: () -> String
+    private let triggerLabel: () -> String
 
-    init(transcriber: Transcriber, modelName: @escaping () -> String) {
+    init(transcriber: Transcriber,
+         modelName: @escaping () -> String,
+         triggerLabel: @escaping () -> String) {
         self.transcriber = transcriber
         self.modelName = modelName
+        self.triggerLabel = triggerLabel
     }
+
+    var hotkeyDescription: String { "hold \(triggerLabel())" }
 
     func refresh() {
         micStatus = PermissionsChecker.microphone()
@@ -89,7 +95,7 @@ struct OnboardingView: View {
             Spacer()
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Hotkey: hold ⌃ Control")
+                Text("Hotkey: \(vm.hotkeyDescription)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text("Granting access to: \(PermissionsChecker.runningAppPath)")
@@ -103,7 +109,7 @@ struct OnboardingView: View {
                 Button("Refresh") { vm.refresh() }
                 Spacer()
                 if vm.micStatus == .granted && vm.accessibilityTrusted && vm.modelLoaded {
-                    Text("All set — hold the hotkey to dictate.")
+                    Text("All set — \(vm.hotkeyDescription) to dictate.")
                         .foregroundStyle(.green)
                 }
             }
