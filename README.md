@@ -16,6 +16,18 @@ open openTalk.xcodeproj
 
 Build & run with ⌘R.
 
+`project.yml` pins `DEVELOPMENT_TEAM: 97ACQRVWSR`. If you fork this and want to build it yourself, change that to your own team ID (Apple Developer → Membership) and update the bundle id (`PRODUCT_BUNDLE_IDENTIFIER` under the `openTalk` target).
+
+For a CLI build:
+
+```bash
+xcodebuild -project openTalk.xcodeproj -scheme openTalk \
+  -configuration Debug -destination 'platform=macOS' \
+  -allowProvisioningUpdates build
+```
+
+The `-allowProvisioningUpdates` flag lets xcodebuild create/refresh the macOS development provisioning profile automatically. Without it, fresh checkouts will fail with "No 'Mac Development' signing certificate found". The first run takes ~15 s; subsequent runs reuse the cached profile.
+
 ## First launch
 
 You'll be asked to grant three things:
