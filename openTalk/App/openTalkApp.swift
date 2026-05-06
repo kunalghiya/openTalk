@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
         NSApp.setActivationPolicy(.accessory)
+        Notifications.setUp()
         coordinator.start()
         coordinator.presentOnboardingIfNeeded()
     }

@@ -3,7 +3,7 @@ import AppKit
 @MainActor
 final class MenuBarController {
     private let statusItem: NSStatusItem
-    private var pulseTimer: Timer?
+    private var errorRevertWorkItem: DispatchWorkItem?
 
     var isRecording: Bool = false {
         didSet { refreshIcon() }
@@ -43,6 +43,29 @@ final class MenuBarController {
     @objc private func setupAction() { onOpenSetup?() }
     @objc private func quitAction() { onQuit?() }
 
+    /// Show a brief red error indicator in the menu bar. If `notify` is
+    /// non-nil, also post a system notification with that body.
+    /// Reverts to idle/recording state after ~1.5 s.
+    func flashError(notify: String?) {
+        statusItem.button?.image = Self.errorImage()
+        statusItem.button?.image?.isTemplate = true
+
+        errorRevertWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            // refreshIcon picks up whatever the current isRecording state is —
+            // if a new recording started during the flash window, the recording
+            // image takes precedence.
+            self.refreshIcon()
+        }
+        errorRevertWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: item)
+
+        if let notify {
+            Notifications.post(notify)
+        }
+    }
+
     private func refreshIcon() {
         statusItem.button?.image = isRecording ? Self.recordingImage() : Self.idleImage()
         statusItem.button?.image?.isTemplate = true
@@ -54,5 +77,10 @@ final class MenuBarController {
 
     private static func recordingImage() -> NSImage? {
         NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "openTalk recording")
+    }
+
+    private static func errorImage() -> NSImage? {
+        NSImage(systemSymbolName: "exclamationmark.triangle.fill",
+                accessibilityDescription: "openTalk error")
     }
 }

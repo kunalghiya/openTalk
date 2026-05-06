@@ -46,6 +46,7 @@ final class AppCoordinator {
             onboardingVM.refresh()
         } catch {
             NSLog("openTalk: model load failed: \(error)")
+            menuBar.flashError(notify: "Couldn't load Whisper model — open Setup to retry.")
         }
     }
 
@@ -83,7 +84,9 @@ final class AppCoordinator {
     private func handleHotkeyPress() {
         guard !isCapturing else { return }
         guard transcriber.isReady else {
-            NSLog("openTalk: hotkey pressed before model ready; ignoring")
+            // Common during launch while the model is still loading.
+            // Soft state: brief icon flash, no notification.
+            menuBar.flashError(notify: nil)
             return
         }
         do {
@@ -92,6 +95,7 @@ final class AppCoordinator {
             menuBar.isRecording = true
         } catch {
             NSLog("openTalk: recorder.start failed: \(error)")
+            menuBar.flashError(notify: "Couldn't access the microphone.")
         }
     }
 
@@ -102,13 +106,24 @@ final class AppCoordinator {
         menuBar.isRecording = false
         guard !samples.isEmpty else { return }
 
-        Task { [transcriber, paster] in
+        Task { [transcriber, paster, menuBar] in
             do {
                 let text = try await transcriber.transcribe(samples: samples)
                 guard !text.isEmpty else { return }
-                await MainActor.run { paster.paste(text) }
+                await MainActor.run {
+                    if !Paster.accessibilityTrusted() {
+                        menuBar.flashError(
+                            notify: "openTalk needs Accessibility access to paste. Open Setup to grant it."
+                        )
+                        return
+                    }
+                    paster.paste(text)
+                }
             } catch {
                 NSLog("openTalk: transcribe failed: \(error)")
+                await MainActor.run {
+                    menuBar.flashError(notify: "Transcription failed.")
+                }
             }
         }
     }
