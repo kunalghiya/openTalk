@@ -13,6 +13,7 @@ final class AppCoordinator {
 
     private var isCapturing = false
     private var onboardingWindow: NSWindow?
+    private var settingsWindow: NSWindow?
 
     init() {
         let store = SettingsStore()
@@ -108,9 +109,16 @@ final class AppCoordinator {
     }
 
     private func openSettings() {
-        NSApp.activate(ignoringOtherApps: true)
-        if #available(macOS 14, *) {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        if settingsWindow == nil {
+            let host = NSHostingController(rootView: SettingsView(settings: settings))
+            let win = NSWindow(contentViewController: host)
+            win.title = "openTalk Settings"
+            win.styleMask = [.titled, .closable]
+            win.isReleasedWhenClosed = false
+            win.center()
+            settingsWindow = win
         }
+        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow?.makeKeyAndOrderFront(nil)
     }
 }

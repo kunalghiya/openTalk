@@ -5,13 +5,10 @@ struct OpenTalkApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        Settings {
-            if let store = AppDelegate.shared?.coordinatorRef.settings {
-                SettingsView(settings: store)
-            } else {
-                ProgressView()
-            }
-        }
+        // Settings window is managed by AppCoordinator as an NSWindow; keep
+        // a placeholder Scene so the App protocol is satisfied without
+        // emitting "Please use SettingsLink" warnings on macOS 14+.
+        Settings { EmptyView() }
     }
 }
 
