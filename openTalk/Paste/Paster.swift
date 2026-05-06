@@ -37,19 +37,29 @@ final class Paster {
     }
 
     /// Paste `text` at the current cursor location, then restore the prior clipboard.
+    /// No-op (with a log) if Accessibility isn't granted — without it, synthesizing
+    /// ⌘V silently fails and we'd otherwise have already clobbered the clipboard.
     func paste(_ text: String) {
         guard !text.isEmpty else { return }
+        guard Self.accessibilityTrusted() else {
+            NSLog("openTalk: paste skipped — Accessibility not granted; transcript: \(text)")
+            return
+        }
 
         let pb = NSPasteboard.general
         let snapshot = PasteboardSnapshot.capture(pb)
 
         pb.clearContents()
         pb.setString(text, forType: .string)
+        let changeCountAtPaste = pb.changeCount
 
         synthesizeCmdV()
 
         let delay = max(100, restoreDelayMs())
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(delay)) {
+            // Don't clobber a clipboard the user (or another tool, e.g. Raycast,
+            // Maccy) wrote between our paste and the restore deadline.
+            guard pb.changeCount == changeCountAtPaste else { return }
             snapshot.restore(into: pb)
         }
     }
