@@ -99,6 +99,12 @@ struct OnboardingView: View {
         .padding(24)
         .frame(width: 520, height: 360)
         .onAppear { vm.refresh() }
+        .task {
+            while !Task.isCancelled {
+                vm.refresh()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
     }
 
     private func stepRow(title: String, done: Bool, actionLabel: String, action: @escaping () -> Void) -> some View {
