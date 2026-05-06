@@ -1,8 +1,10 @@
 import AppKit
+import SwiftUI
 
 @MainActor
 final class AppCoordinator {
     let settings: SettingsStore
+    let onboardingVM: OnboardingViewModel
     private let menuBar: MenuBarController
     private let hotkey: HotkeyManager
     private let recorder: AudioRecorder
@@ -10,6 +12,7 @@ final class AppCoordinator {
     private let paster: Paster
 
     private var isCapturing = false
+    private var onboardingWindow: NSWindow?
 
     init() {
         let store = SettingsStore()
@@ -17,13 +20,19 @@ final class AppCoordinator {
         self.menuBar = MenuBarController()
         self.hotkey = HotkeyManager()
         self.recorder = AudioRecorder()
-        self.transcriber = WhisperKitTranscriber()
+        let trans = WhisperKitTranscriber()
+        self.transcriber = trans
         self.paster = Paster(restoreDelayMs: { store.clipboardRestoreDelayMs })
+        self.onboardingVM = OnboardingViewModel(
+            transcriber: trans,
+            modelName: { store.selectedModelName }
+        )
     }
 
     func start() {
         menuBar.onQuit = { NSApp.terminate(nil) }
         menuBar.onOpenSettings = { [weak self] in self?.openSettings() }
+        menuBar.onOpenSetup = { [weak self] in self?.showOnboardingWindow() }
         hotkey.onPress = { [weak self] in self?.handleHotkeyPress() }
         hotkey.onRelease = { [weak self] in self?.handleHotkeyRelease() }
 
@@ -33,9 +42,34 @@ final class AppCoordinator {
     private func loadModelOnce() async {
         do {
             try await transcriber.load(modelName: settings.selectedModelName) { _ in }
+            onboardingVM.refresh()
         } catch {
             NSLog("openTalk: model load failed: \(error)")
         }
+    }
+
+    func presentOnboardingIfNeeded() {
+        let needsOnboarding =
+            PermissionsChecker.microphone() != .granted ||
+            !PermissionsChecker.accessibilityTrusted() ||
+            !transcriber.isReady
+        if needsOnboarding {
+            showOnboardingWindow()
+        }
+    }
+
+    func showOnboardingWindow() {
+        if onboardingWindow == nil {
+            let host = NSHostingController(rootView: OnboardingView(vm: onboardingVM))
+            let win = NSWindow(contentViewController: host)
+            win.title = "openTalk Setup"
+            win.styleMask = [.titled, .closable]
+            win.isReleasedWhenClosed = false
+            win.center()
+            onboardingWindow = win
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        onboardingWindow?.makeKeyAndOrderFront(nil)
     }
 
     // MARK: - Push-to-talk
