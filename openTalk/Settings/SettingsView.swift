@@ -2,7 +2,10 @@ import SwiftUI
 
 struct SettingsView: View {
     @Bindable var settings: SettingsStore
-    @State private var launchAtLogin: Bool = LaunchAtLogin.isEnabled
+    // Re-read on every body evaluation so re-opening the window picks up
+    // changes the user (or another tool) made to System Settings → Login Items
+    // while the window was closed.
+    @State private var launchAtLoginTick: Int = 0
 
     var body: some View {
         Form {
@@ -24,8 +27,14 @@ struct SettingsView: View {
 
             Section("Behavior") {
                 Toggle("Launch at login", isOn: Binding(
-                    get: { launchAtLogin },
-                    set: { v in launchAtLogin = v; LaunchAtLogin.isEnabled = v }
+                    get: {
+                        _ = launchAtLoginTick
+                        return LaunchAtLogin.isEnabled
+                    },
+                    set: { v in
+                        LaunchAtLogin.isEnabled = v
+                        launchAtLoginTick &+= 1
+                    }
                 ))
                 Slider(
                     value: Binding(

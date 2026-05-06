@@ -114,6 +114,10 @@ struct OnboardingView: View {
         .task {
             while !Task.isCancelled {
                 vm.refresh()
+                if vm.micStatus == .granted && vm.accessibilityTrusted && vm.modelLoaded {
+                    // All three checks are green; no point polling forever.
+                    break
+                }
                 try? await Task.sleep(for: .seconds(1))
             }
         }
