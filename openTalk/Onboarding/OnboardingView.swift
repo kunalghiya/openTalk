@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import KeyboardShortcuts
 
 @MainActor
 @Observable
@@ -30,7 +31,7 @@ final class OnboardingViewModel {
     }
 
     func openAccessibility() {
-        PermissionsChecker.openAccessibilitySettings()
+        PermissionsChecker.promptAndOpenAccessibilitySettings()
     }
 
     func downloadModel() async {
@@ -87,11 +88,23 @@ struct OnboardingView: View {
             }
 
             Spacer()
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Hotkey: \(KeyboardShortcuts.getShortcut(for: .dictation)?.description ?? "(none set)")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Granting access to: \(PermissionsChecker.runningAppPath)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+            }
+
             HStack {
                 Button("Refresh") { vm.refresh() }
                 Spacer()
                 if vm.micStatus == .granted && vm.accessibilityTrusted && vm.modelLoaded {
-                    Text("All set — hold ⌥Space to dictate.")
+                    Text("All set — hold the hotkey to dictate.")
                         .foregroundStyle(.green)
                 }
             }
