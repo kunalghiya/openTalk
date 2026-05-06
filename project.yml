@@ -75,6 +75,8 @@ targets:
       base:
         BUNDLE_LOADER: "$(TEST_HOST)"
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/openTalk.app/Contents/MacOS/openTalk"
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.opentalk.openTalkTests
 
 schemes:
   openTalk:
