@@ -50,10 +50,15 @@ final class AppCoordinator {
     }
 
     func presentOnboardingIfNeeded() {
+        // We check the model on *disk* (synchronous) instead of
+        // `transcriber.isReady` because load runs async and won't have
+        // settled yet at applicationDidFinishLaunching time. So a fully
+        // permissioned, cached install would otherwise see Setup pop up
+        // every launch.
         let needsOnboarding =
             PermissionsChecker.microphone() != .granted ||
             !PermissionsChecker.accessibilityTrusted() ||
-            !transcriber.isReady
+            !WhisperKitTranscriber.isModelDownloaded(modelName: settings.selectedModelName)
         if needsOnboarding {
             showOnboardingWindow()
         }

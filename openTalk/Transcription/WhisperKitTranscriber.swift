@@ -19,16 +19,26 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
         state.withLock { $0.isReady }
     }
 
+    /// Cheap, synchronous check: is the model already on disk for the given name?
+    /// Use this to decide whether onboarding is needed before triggering an
+    /// async load — no need to wait for `isReady` to settle.
+    static func isModelDownloaded(modelName: String) -> Bool {
+        FileManager.default.fileExists(atPath: modelDirectory(for: modelName).path)
+    }
+
+    private static func modelDirectory(for modelName: String) -> URL {
+        modelCacheDirectory()
+            .appendingPathComponent("models")
+            .appendingPathComponent("argmaxinc")
+            .appendingPathComponent("whisperkit-coreml")
+            .appendingPathComponent(modelName)
+    }
+
     func load(modelName: String, progress: @Sendable @escaping (Double) -> Void) async throws {
         do {
             let cacheBase = Self.modelCacheDirectory()
-            let modelFolder = cacheBase
-                .appendingPathComponent("models")
-                .appendingPathComponent("argmaxinc")
-                .appendingPathComponent("whisperkit-coreml")
-                .appendingPathComponent(modelName)
-                .path
-            let modelExistsLocally = FileManager.default.fileExists(atPath: modelFolder)
+            let modelFolder = Self.modelDirectory(for: modelName).path
+            let modelExistsLocally = Self.isModelDownloaded(modelName: modelName)
             if !modelExistsLocally {
                 NSLog("openTalk: whisper model cache miss — downloading (path=\(modelFolder))")
             }
