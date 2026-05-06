@@ -26,6 +26,13 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
         FileManager.default.fileExists(atPath: modelDirectory(for: modelName).path)
     }
 
+    /// All models available from the WhisperKit HuggingFace repo.
+    /// Network call; cache the result in your view model — don't refetch
+    /// on every Settings open.
+    static func fetchAvailableModelNames() async throws -> [String] {
+        try await WhisperKit.fetchAvailableModels()
+    }
+
     private static func modelDirectory(for modelName: String) -> URL {
         modelCacheDirectory()
             .appendingPathComponent("models")
@@ -35,25 +42,50 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
     }
 
     func load(modelName: String, progress: @Sendable @escaping (Double) -> Void) async throws {
-        do {
-            let cacheBase = Self.modelCacheDirectory()
-            let modelFolder = Self.modelDirectory(for: modelName).path
-            let modelExistsLocally = Self.isModelDownloaded(modelName: modelName)
-            if !modelExistsLocally {
-                NSLog("openTalk: whisper model cache miss — downloading (path=\(modelFolder))")
-            }
+        let cacheBase = Self.modelCacheDirectory()
+        let modelFolderURL = Self.modelDirectory(for: modelName)
+        let modelExistsLocally = Self.isModelDownloaded(modelName: modelName)
 
+        progress(0.01)
+
+        // 0.0 .. 0.9 is the download phase. We split here so that even when the
+        // download is a no-op (cache hit) we still show motion via the load
+        // phase below.
+        let resolvedFolderPath: String
+        if modelExistsLocally {
+            resolvedFolderPath = modelFolderURL.path
+        } else {
+            NSLog("openTalk: whisper model cache miss — downloading \(modelName)")
+            do {
+                let downloaded = try await WhisperKit.download(
+                    variant: modelName,
+                    downloadBase: cacheBase,
+                    progressCallback: { p in
+                        // p.fractionCompleted is 0.0 ... 1.0 across the download.
+                        progress(min(0.9, p.fractionCompleted * 0.9))
+                    }
+                )
+                resolvedFolderPath = downloaded.path
+            } catch {
+                throw TranscriberError.underlying(error)
+            }
+        }
+
+        progress(0.9)
+
+        // Now build the pipeline against the on-disk model. download:false so
+        // WhisperKit doesn't redo what we just did.
+        do {
             let config = WhisperKitConfig(
                 model: modelName,
                 downloadBase: cacheBase,
-                modelFolder: modelExistsLocally ? modelFolder : nil,
+                modelFolder: resolvedFolderPath,
                 verbose: false,
                 logLevel: .error,
                 prewarm: true,
                 load: true,
-                download: true
+                download: false
             )
-            progress(0.05)
             let kit = try await WhisperKit(config)
             progress(1.0)
             state.withLock {

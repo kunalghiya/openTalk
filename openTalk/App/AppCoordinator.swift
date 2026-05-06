@@ -5,6 +5,7 @@ import SwiftUI
 final class AppCoordinator {
     let settings: SettingsStore
     let onboardingVM: OnboardingViewModel
+    let settingsVM: SettingsViewModel
     private let menuBar: MenuBarController
     private let hotkey: HotkeyManager
     private let recorder: AudioRecorder
@@ -28,6 +29,7 @@ final class AppCoordinator {
             transcriber: trans,
             modelName: { store.selectedModelName }
         )
+        self.settingsVM = SettingsViewModel(settings: store, transcriber: trans)
     }
 
     func start() {
@@ -130,7 +132,7 @@ final class AppCoordinator {
 
     private func openSettings() {
         if settingsWindow == nil {
-            let host = NSHostingController(rootView: SettingsView(settings: settings))
+            let host = NSHostingController(rootView: SettingsView(settings: settings, modelVM: settingsVM))
             let win = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 520, height: 480),
                 styleMask: [.titled, .closable],

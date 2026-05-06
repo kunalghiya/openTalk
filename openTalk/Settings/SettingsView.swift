@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Bindable var settings: SettingsStore
+    @Bindable var modelVM: SettingsViewModel
     // Re-read on every body evaluation so re-opening the window picks up
     // changes the user (or another tool) made to System Settings → Login Items
     // while the window was closed.
@@ -16,13 +17,37 @@ struct SettingsView: View {
             }
 
             Section("Model") {
-                Picker("Whisper model", selection: $settings.selectedModelName) {
-                    ForEach(ModelManager.recommended, id: \.id) { m in
-                        Text("\(m.label) (~\(m.approxSizeMB) MB)").tag(m.id)
+                Picker("Whisper model", selection: Binding(
+                    get: { modelVM.selectedModelName },
+                    set: { modelVM.selectedModelName = $0 }
+                )) {
+                    ForEach(modelVM.availableModels, id: \.self) { name in
+                        let downloaded = WhisperKitTranscriber.isModelDownloaded(modelName: name)
+                        Text("\(ModelManager.displayLabel(for: name))\(downloaded ? "" : " ⤓")")
+                            .tag(name)
                     }
                 }
-                Text("Changing the model takes effect on next launch, or click Setup… to redownload now.")
-                    .font(.caption).foregroundStyle(.secondary)
+                .disabled(modelVM.modelProgress != nil)
+
+                if modelVM.fetchingModels {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Loading model list…").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+
+                if let progress = modelVM.modelProgress {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ProgressView(value: progress)
+                        Text(progress < 0.9 ? "Downloading… \(Int(progress * 100))%" : "Loading model…")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                } else if let err = modelVM.modelError {
+                    Text(err).font(.caption).foregroundStyle(.red)
+                } else {
+                    Text("Downloads land in ~/Library/Application Support/openTalk/. ⤓ marks models not yet on disk.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
 
             Section("Behavior") {
@@ -51,6 +76,9 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding(20)
-        .frame(width: 520, height: 480)
+        .frame(width: 540, height: 540)
+        .task {
+            await modelVM.loadAvailableModelsIfNeeded()
+        }
     }
 }
