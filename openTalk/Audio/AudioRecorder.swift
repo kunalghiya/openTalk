@@ -1,4 +1,5 @@
 import AVFoundation
+import os
 
 enum AudioRecorderError: Error {
     case engineFailed(Error)
@@ -9,29 +10,34 @@ enum AudioRecorderError: Error {
 final class AudioRecorder {
     private let engine = AVAudioEngine()
     private var converter: AudioBufferConverter?
-    private var collected: [Float] = []
+    /// Lock-protected sample buffer. The audio tap thread appends synchronously;
+    /// MainActor (via `stop()`) drains and clears under the same lock. This
+    /// preserves sample ordering across buffers and prevents stop() from
+    /// racing with in-flight enqueues — issues the prior `Task { @MainActor }`
+    /// pattern silently exhibited.
+    private let collected = OSAllocatedUnfairLock<[Float]>(initialState: [])
     private var isRunning = false
 
     func start() throws {
         guard !isRunning else { return }
-        collected.removeAll(keepingCapacity: true)
+        collected.withLock { $0.removeAll(keepingCapacity: true) }
 
         let input = engine.inputNode
         let inFormat = input.outputFormat(forBus: 0)
         let conv = try AudioBufferConverter(inputFormat: inFormat)
         self.converter = conv
 
-        input.installTap(onBus: 0, bufferSize: 4_096, format: inFormat) { [weak self] buffer, _ in
-            guard let self else { return }
+        // Capture only the things we need into the audio-thread closure.
+        // Avoiding `self` keeps the closure off MainActor isolation.
+        let buffer = collected
+        input.installTap(onBus: 0, bufferSize: 4_096, format: inFormat) { audioBuffer, _ in
             let chunk: [Float]
             do {
-                chunk = try conv.append(buffer)
+                chunk = try conv.append(audioBuffer)
             } catch {
                 return
             }
-            Task { @MainActor in
-                self.collected.append(contentsOf: chunk)
-            }
+            buffer.withLock { $0.append(contentsOf: chunk) }
         }
 
         engine.prepare()
@@ -45,10 +51,15 @@ final class AudioRecorder {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         let tail = (try? converter?.flush()) ?? []
-        let result = collected + tail
-        collected.removeAll(keepingCapacity: true)
+        // Atomic swap-out: any tap callback that was already in flight when
+        // removeTap returned will have completed; nothing new can append.
+        let result = collected.withLock { samples -> [Float] in
+            let out = samples
+            samples.removeAll(keepingCapacity: true)
+            return out
+        }
         converter = nil
-        return result
+        return result + tail
     }
 }
 
@@ -56,7 +67,11 @@ final class AudioRecorder {
 
 /// Streams arbitrary-format input AVAudioPCMBuffers and yields 16 kHz mono Float32 samples.
 /// Downmixes multi-channel input by averaging, then resamples to 16 kHz.
-final class AudioBufferConverter {
+///
+/// Marked `@unchecked Sendable` because access is serialized by callers:
+/// during recording only the audio render thread calls `append()`, and
+/// only after the tap is removed does MainActor call `flush()`.
+final class AudioBufferConverter: @unchecked Sendable {
     static let targetSampleRate: Double = 16_000
     static let targetFormat: AVAudioFormat = AVAudioFormat(
         commonFormat: .pcmFormatFloat32,
@@ -92,12 +107,15 @@ final class AudioBufferConverter {
     @discardableResult
     func append(_ inBuffer: AVAudioPCMBuffer) throws -> [Float] {
         let monoBuffer = downmixToMono(inBuffer)
-        let estimatedOut = AVAudioFrameCount(
-            Double(monoBuffer.frameLength) * Self.targetSampleRate / monoInputFormat.sampleRate
-        ) + 256
+        // 2× expected output size to comfortably absorb filter delay and
+        // any AVAudioConverter quirks where output briefly exceeds the
+        // naive ratio-based estimate.
+        let outFrames = AVAudioFrameCount(
+            (Double(monoBuffer.frameLength) * Self.targetSampleRate / monoInputFormat.sampleRate) * 2 + 1024
+        )
         guard let outBuffer = AVAudioPCMBuffer(
             pcmFormat: Self.targetFormat,
-            frameCapacity: max(1024, estimatedOut)
+            frameCapacity: max(1024, outFrames)
         ) else {
             return []
         }
@@ -116,19 +134,27 @@ final class AudioBufferConverter {
         return floats(from: outBuffer)
     }
 
-    /// Drain remaining filter state on stop.
+    /// Drain remaining filter state on stop. Loops until the converter signals
+    /// no more data, in case the tail spans more than one output buffer.
     func flush() throws -> [Float] {
-        guard let outBuffer = AVAudioPCMBuffer(
-            pcmFormat: Self.targetFormat,
-            frameCapacity: 4_096
-        ) else { return [] }
-        var error: NSError?
-        let status = converter.convert(to: outBuffer, error: &error) { _, outStatus in
-            outStatus.pointee = .endOfStream
-            return nil
+        var all: [Float] = []
+        for _ in 0..<8 {
+            guard let outBuffer = AVAudioPCMBuffer(
+                pcmFormat: Self.targetFormat,
+                frameCapacity: 4_096
+            ) else { break }
+            var error: NSError?
+            let status = converter.convert(to: outBuffer, error: &error) { _, outStatus in
+                outStatus.pointee = .endOfStream
+                return nil
+            }
+            if status == .error, let error { throw AudioRecorderError.converterFailed(error) }
+            let chunk = floats(from: outBuffer)
+            if chunk.isEmpty { break }
+            all.append(contentsOf: chunk)
+            if outBuffer.frameLength < outBuffer.frameCapacity { break }
         }
-        if status == .error, let error { throw AudioRecorderError.converterFailed(error) }
-        return floats(from: outBuffer)
+        return all
     }
 
     private func downmixToMono(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer {
