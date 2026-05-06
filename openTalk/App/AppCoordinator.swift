@@ -109,5 +109,8 @@ final class AppCoordinator {
 
     private func openSettings() {
         NSApp.activate(ignoringOtherApps: true)
+        if #available(macOS 14, *) {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
     }
 }

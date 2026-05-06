@@ -5,7 +5,13 @@ struct OpenTalkApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        Settings { EmptyView() } // replaced in Task 11
+        Settings {
+            if let store = AppDelegate.shared?.coordinatorRef.settings {
+                SettingsView(settings: store)
+            } else {
+                ProgressView()
+            }
+        }
     }
 }
 
