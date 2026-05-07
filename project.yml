@@ -6,6 +6,10 @@ options:
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
+configFiles:
+  Debug: Local.xcconfig
+  Release: Local.xcconfig
+
 settings:
   base:
     SWIFT_VERSION: "5.9"
@@ -15,7 +19,7 @@ settings:
     ENABLE_HARDENED_RUNTIME: YES
     CODE_SIGN_STYLE: Automatic
     CODE_SIGN_IDENTITY: "Apple Development"
-    DEVELOPMENT_TEAM: "97ACQRVWSR"
+    # DEVELOPMENT_TEAM comes from Local.xcconfig — see Local.xcconfig.example.
 
 packages:
   WhisperKit:

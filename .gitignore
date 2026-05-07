@@ -15,3 +15,12 @@ Package.resolved
 # Editor
 .vscode/
 .idea/
+
+# Local signing config — see Local.xcconfig.example for the template
+Local.xcconfig
+
+# Release artifacts
+build/
+dist/
+*.dmg
+*.zip

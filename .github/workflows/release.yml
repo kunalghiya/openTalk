@@ -1,0 +1,70 @@
+name: Release
+
+# Trigger: push a tag like v0.1.0 → builds DMG and uploads to GitHub Releases.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # If repo secrets are set, decrypt the Developer ID certificate into a
+      # temporary keychain. If not, the script falls back to ad-hoc signing —
+      # users will hit Gatekeeper but the build still succeeds and uploads.
+      - name: Import Developer ID certificate
+        if: ${{ secrets.DEVELOPER_ID_P12 != '' }}
+        env:
+          DEVELOPER_ID_P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
+          echo "$DEVELOPER_ID_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" \
+                          -k "$KEYCHAIN_PATH" \
+                          -P "$DEVELOPER_ID_P12_PASSWORD" \
+                          -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+                                          -s -k "$KEYCHAIN_PASSWORD" \
+                                          "$KEYCHAIN_PATH"
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Write Local.xcconfig
+        run: |
+          echo "DEVELOPMENT_TEAM = ${{ secrets.APPLE_TEAM_ID }}" > Local.xcconfig
+
+      - name: Build DMG
+        env:
+          DEVELOPER_ID_IDENTITY: ${{ secrets.DEVELOPER_ID_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: ./Scripts/build-release.sh
+
+      - name: Upload DMG to release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: build/*.dmg
+          generate_release_notes: true

@@ -1,0 +1,14 @@
+// Local development settings. Copy this file to Local.xcconfig (which is
+// gitignored) and fill in your own values. project.yml references
+// Local.xcconfig automatically.
+//
+// Find your Apple Developer team ID at:
+//   https://developer.apple.com/account → Membership → Team ID
+// or in Xcode → Settings → Accounts → select your Apple ID → Manage
+// Certificates → the column shows the team.
+//
+// A free Personal Team works for local development; you only need a paid
+// Apple Developer Program account if you want to ship signed/notarized
+// binaries.
+
+DEVELOPMENT_TEAM =
