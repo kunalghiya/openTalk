@@ -98,6 +98,75 @@ Synthesizing a `⌘V` into another app via `CGEvent.post(tap: .cghidEventTap)` i
 
 ---
 
+## Troubleshooting
+
+### Hotkey doesn't fire even though Accessibility looks granted
+
+Symptom: the openTalk row in **System Settings → Privacy & Security → Accessibility** is toggled on, but holding the hotkey does nothing globally. (It might still work while openTalk's own Setup window is focused.)
+
+This is a macOS TCC quirk. The Accessibility list keys each entry on the **code-signing identity** of the app — bundle id + cert chain + signature hashes — not its filename or path. If you've previously had a different build of openTalk on this machine (a self-built copy with a different signing team, or an older release with different signing), the row in Accessibility may belong to the **old** identity. Toggling it does nothing for the running binary.
+
+**Fix:** in Accessibility, **remove** the openTalk row entirely (select it, click `−`), then in openTalk's Setup window click **Open System Settings** for Accessibility. macOS will create a fresh row tied to the currently running binary; toggle it on. The Setup window's checkmark will flip green within a second.
+
+The same gotcha applies to the Microphone list. Same fix.
+
+### "Apple could not verify openTalk is free of malware" on first launch
+
+Expected for the current ad-hoc-signed releases. See the [Install](#2-open-it-past-gatekeeper) section above for the right-click → Open / Open Anyway / `xattr` workarounds.
+
+If the dialog only offers **Move to Trash** with no **Open** button (the harshest Gatekeeper case), use:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/openTalk.app
+open /Applications/openTalk.app
+```
+
+### Setup window keeps re-opening on every launch
+
+Means one of the three checks isn't passing on disk:
+- Microphone not granted, *or*
+- Accessibility not granted, *or*
+- The currently selected Whisper model is missing from `~/Library/Application Support/openTalk/models/argmaxinc/whisperkit-coreml/`
+
+Open Setup from the menu-bar icon and look for the row that doesn't have a green check. If everything *looks* green but Setup still auto-opened, see the TCC quirk above — the Accessibility row is probably mismatched.
+
+### Model download fails or stalls
+
+The download lands in `~/Library/Application Support/openTalk/models/`. If a previous attempt was interrupted:
+
+```bash
+rm -rf "$HOME/Library/Application Support/openTalk/models"
+```
+
+Then click **Download** again in Setup. Models come from the [argmaxinc/whisperkit-coreml](https://huggingface.co/argmaxinc/whisperkit-coreml) HuggingFace repo — if that's down, downloads will fail.
+
+### Recording starts on every Ctrl-click / Ctrl-arrow
+
+You're holding the wrong modifier. ⌃ Control is heavily used by macOS for navigation. Open **Settings…** from the menu bar and switch the push-to-talk modifier to ⌥ Option, which is much less commonly bound. Settings change takes effect immediately.
+
+### Reset everything and start over
+
+```bash
+# Quit the app
+osascript -e 'quit app "openTalk"' 2>/dev/null
+
+# Wipe the app
+rm -rf "/Applications/openTalk.app"
+
+# Wipe model cache and prefs
+rm -rf "$HOME/Library/Application Support/openTalk"
+defaults delete com.opentalk.openTalk 2>/dev/null
+
+# Then in System Settings → Privacy & Security:
+#   - Microphone: remove openTalk
+#   - Accessibility: remove openTalk
+# And in System Settings → General → Login Items: remove openTalk if present.
+```
+
+Reinstall from the DMG and walk through Setup again.
+
+---
+
 ## Releasing (for maintainers)
 
 Tag and push:
