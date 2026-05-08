@@ -66,7 +66,7 @@ Click the menu-bar icon for **Settings…** to:
 
 ```bash
 brew install xcodegen
-git clone https://github.com/<your-username>/openTalk.git
+git clone https://github.com/prufect/openTalk.git
 cd openTalk
 cp Local.xcconfig.example Local.xcconfig
 # edit Local.xcconfig and set DEVELOPMENT_TEAM to your Apple Developer team ID
