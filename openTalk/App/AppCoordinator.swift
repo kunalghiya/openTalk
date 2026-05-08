@@ -11,6 +11,7 @@ final class AppCoordinator {
     private let recorder: AudioRecorder
     private let transcriber: Transcriber
     private let paster: Paster
+    private let recordingHUD = RecordingHUDController()
 
     private var isCapturing = false
     private var onboardingWindow: NSWindow?
@@ -96,6 +97,7 @@ final class AppCoordinator {
             try recorder.start()
             isCapturing = true
             menuBar.isRecording = true
+            recordingHUD.setRecording()
         } catch {
             NSLog("openTalk: recorder.start failed: \(error)")
             menuBar.flashError(notify: "Couldn't access the microphone.")
@@ -107,25 +109,36 @@ final class AppCoordinator {
         let samples = recorder.stop()
         isCapturing = false
         menuBar.isRecording = false
-        guard !samples.isEmpty else { return }
+        guard !samples.isEmpty else {
+            recordingHUD.hide()
+            return
+        }
 
-        Task { [transcriber, paster, menuBar] in
+        recordingHUD.setTranscribing()
+
+        Task { [transcriber, paster, menuBar, recordingHUD] in
             do {
                 let text = try await transcriber.transcribe(samples: samples)
-                guard !text.isEmpty else { return }
+                guard !text.isEmpty else {
+                    await MainActor.run { recordingHUD.hide() }
+                    return
+                }
                 await MainActor.run {
                     if !Paster.accessibilityTrusted() {
                         menuBar.flashError(
                             notify: "openTalk needs Accessibility access to paste. Open Setup to grant it."
                         )
+                        recordingHUD.hide()
                         return
                     }
                     paster.paste(text)
+                    recordingHUD.hideSoon()
                 }
             } catch {
                 NSLog("openTalk: transcribe failed: \(error)")
                 await MainActor.run {
                     menuBar.flashError(notify: "Transcription failed.")
+                    recordingHUD.hide()
                 }
             }
         }
