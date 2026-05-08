@@ -54,8 +54,11 @@ final class RecordingHUDController {
         guard panel == nil else { return }
         let host = NSHostingController(rootView: RecordingHUDView(state: state))
         host.view.wantsLayer = true
+        // Panel is intentionally larger than the visible capsule so the
+        // capsule's drop shadow has room to render without being clipped
+        // by the panel's edges. The SwiftUI frame below uses the same size.
         let p = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 220, height: 56),
+            contentRect: NSRect(x: 0, y: 0, width: 260, height: 88),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -112,9 +115,11 @@ struct RecordingHUDView: View {
                 .overlay {
                     Capsule().stroke(.white.opacity(0.12), lineWidth: 1)
                 }
-                .shadow(color: .black.opacity(0.4), radius: 14, y: 4)
+                .shadow(color: .black.opacity(0.45), radius: 10, y: 3)
         }
-        .frame(width: 220, height: 56)
+        // Outer frame matches the NSPanel's contentRect — must be larger
+        // than the capsule itself so the drop shadow doesn't clip.
+        .frame(width: 260, height: 88)
         .animation(.easeInOut(duration: 0.18), value: state.phase)
     }
 
