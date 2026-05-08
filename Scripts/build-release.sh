@@ -63,47 +63,64 @@ xcodegen generate
 # --- build & archive -------------------------------------------------------
 
 echo ">> archiving..."
-xcodebuild -project "$PROJECT" \
-           -scheme "$SCHEME" \
-           -configuration Release \
-           -destination 'generic/platform=macOS' \
-           -archivePath "$ARCHIVE_PATH" \
-           -allowProvisioningUpdates \
-           archive | xcbeautify --quiet 2>/dev/null || \
-xcodebuild -project "$PROJECT" \
-           -scheme "$SCHEME" \
-           -configuration Release \
-           -destination 'generic/platform=macOS' \
-           -archivePath "$ARCHIVE_PATH" \
-           -allowProvisioningUpdates \
-           archive | tail -20
-
-# Export the .app from the archive.
-EXPORT_OPTIONS_PLIST="$BUILD_DIR/export-options.plist"
 if $NOTARIZE; then
-    METHOD="developer-id"
+    # Automatic signing — picks up the Developer ID cert imported into the
+    # CI keychain (or the local keychain when run by hand).
+    xcodebuild -project "$PROJECT" \
+               -scheme "$SCHEME" \
+               -configuration Release \
+               -destination 'generic/platform=macOS' \
+               -archivePath "$ARCHIVE_PATH" \
+               -allowProvisioningUpdates \
+               archive 2>&1 | tail -30
 else
-    METHOD="mac-application"
+    # Ad-hoc: bypass automatic signing entirely. No team required.
+    xcodebuild -project "$PROJECT" \
+               -scheme "$SCHEME" \
+               -configuration Release \
+               -destination 'generic/platform=macOS' \
+               -archivePath "$ARCHIVE_PATH" \
+               archive \
+               CODE_SIGN_STYLE=Manual \
+               CODE_SIGN_IDENTITY=- \
+               DEVELOPMENT_TEAM= \
+               2>&1 | tail -30
 fi
-cat > "$EXPORT_OPTIONS_PLIST" <<EOF
+
+if [[ ! -d "$ARCHIVE_PATH" ]]; then
+    echo "!! archive failed: $ARCHIVE_PATH not found" >&2
+    exit 1
+fi
+
+# Get the .app out of the archive. For notarized builds we go through
+# xcodebuild -exportArchive so the export options plist can apply the
+# Developer ID method. For ad-hoc we just copy — no team / no provisioning
+# profile to negotiate.
+mkdir -p "$EXPORT_DIR"
+if $NOTARIZE; then
+    EXPORT_OPTIONS_PLIST="$BUILD_DIR/export-options.plist"
+    cat > "$EXPORT_OPTIONS_PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>method</key>
-    <string>$METHOD</string>
+    <string>developer-id</string>
     <key>signingStyle</key>
     <string>automatic</string>
 </dict>
 </plist>
 EOF
-
-echo ">> exporting..."
-xcodebuild -exportArchive \
-           -archivePath "$ARCHIVE_PATH" \
-           -exportPath "$EXPORT_DIR" \
-           -exportOptionsPlist "$EXPORT_OPTIONS_PLIST" \
-           -allowProvisioningUpdates 2>&1 | tail -10
+    echo ">> exporting (developer-id)..."
+    xcodebuild -exportArchive \
+               -archivePath "$ARCHIVE_PATH" \
+               -exportPath "$EXPORT_DIR" \
+               -exportOptionsPlist "$EXPORT_OPTIONS_PLIST" \
+               -allowProvisioningUpdates 2>&1 | tail -10
+else
+    echo ">> copying ad-hoc-signed app from archive..."
+    cp -R "$ARCHIVE_PATH/Products/Applications/$APP_NAME.app" "$EXPORT_DIR/"
+fi
 
 if [[ ! -d "$APP_PATH" ]]; then
     echo "!! export failed: $APP_PATH not found" >&2
